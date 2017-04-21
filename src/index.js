@@ -134,14 +134,24 @@ function registerModule (store, moduleName) {
     state: {},
 
     actions: {
-      async finalize ({ commit, getters }) {
-        const promises = getters.pendingPromises
+      finalize ({ commit, getters }) {
+        return new Promise((resolve) => {
+          const promises = getters.pendingPromises
 
-        if (promises.length) {
-          await Promise.all(promises.map(p => p.catch(() => {})))
-        }
+          if (!promises.length) {
+            commit('finalize')
 
-        commit('finalize')
+            return resolve()
+          }
+
+          Promise
+            .all(promises.map(p => p.catch(() => {})))
+            .then(() => {
+              commit('finalize')
+
+              resolve()
+            })
+        })
       }
     },
 
