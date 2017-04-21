@@ -363,12 +363,11 @@ export const plugin = {
   },
 
   vuex (options = {}) {
-    if (!defaultModuleName) {
-      defaultModuleName = options.moduleName || MODULE_NAME
-    }
+    defaultModuleName = options.moduleName || MODULE_NAME
 
     return function promiseStorePlugin (store) {
-      if (!defaultStore) defaultStore = store
+      defaultStore = store
+      enabled = true
 
       registerModule(store, defaultModuleName)
     }
