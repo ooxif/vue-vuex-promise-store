@@ -1,6 +1,6 @@
 {
   "name": "vue-vuex-promise-store",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Wraps promises to save resolved data to vuex store.",
   "author": "oo <oo@xif.at>",
   "license": "MIT",
