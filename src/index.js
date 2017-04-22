@@ -1,157 +1,154 @@
 const MODULE_NAME = 'promise'
 
-let enabled = true
 let defaultStore
 let defaultModuleName
 
-function changeState (wrapped, promiseState, value) {
-  wrapped.isFulfilled = promiseState === true
-  wrapped.isPending = promiseState === null
-  wrapped.isRejected = promiseState === false
-  wrapped.reason = promiseState === false ? value : undefined
-  wrapped.value = promiseState === true ? value : undefined
-
-  if (promiseState === null) wrapped.promise = value
+function each (object, iteratee) {
+  return Object.keys(object).forEach((key) => {
+    iteratee(object[key], key)
+  })
 }
 
-function invokeSync (wrapped, handler) {
-  handler(wrapped.isFulfilled ? wrapped.value : wrapped.reason)
+function noop () {}
+
+function handleSync (context, handler) {
+  handler(context.isFulfilled ? context.value : context.reason)
 }
 
-function startResolveSync (wrapped, promiseState, value, syncQueue) {
-  changeState(wrapped, promiseState, value)
+function runSyncQueue (context, promiseState, value, syncQueue) {
+  const isFulfilled = promiseState === true
+  const isPending = promiseState === null
+  const isRejected = promiseState === false
 
-  if (!wrapped.isPending && syncQueue.length) {
-    const currentPromiseState = wrapped.isFulfilled
-    let item
+  Object.assign(context, {
+    isFulfilled,
+    isPending,
+    isRejected,
 
-    while ((item = syncQueue.shift())) { // eslint-disable-line no-cond-assign
-      if (item[0] === currentPromiseState) {
-        invokeSync(wrapped, item[1])
-      }
-    }
+    reason: isRejected ? value : undefined,
+    value: isFulfilled ? value : undefined
+  })
+
+  if (isPending) {
+    context.promise = value
+
+    return
+  }
+
+  if (!syncQueue.length) return
+
+  let item
+
+  while ((item = syncQueue.shift())) {
+    (item[0] === isFulfilled) && handleSync(context, item[1])
   }
 }
 
-function attachMethods (rawWrapped, store, moduleName, key) {
+function attachMethods (context, store, moduleName, key) {
   const syncQueue = []
 
-  rawWrapped.thenSync = function thenSync (onFulfilled, onRejected) {
-    let wrapped
-    let moduleState
+  context.thenSync = function thenSync (onFulfilled, onRejected) {
+    if (context.isPending) {
+      onFulfilled && syncQueue.push([true, onFulfilled])
+      onRejected && syncQueue.push([false, onRejected])
 
-    if (enabled) {
-      moduleState = store.state[moduleName]
-
-      if (!moduleState) return null
-
-      wrapped = moduleState[key]
-
-      if (!wrapped) return null
-    } else {
-      wrapped = rawWrapped
+      return context
     }
 
-    if (wrapped.isPending) {
-      if (onFulfilled) syncQueue.push([true, onFulfilled])
-      if (onRejected) syncQueue.push([false, onRejected])
-
-      return wrapped
+    if (context.isFulfilled && onFulfilled) {
+      handleSync(context, onFulfilled)
     }
 
-    if (wrapped.isFulfilled && onFulfilled) {
-      invokeSync(wrapped, onFulfilled)
+    if (context.isRejected && onRejected) {
+      handleSync(context, onRejected)
     }
 
-    if (wrapped.isRejected && onRejected) {
-      invokeSync(wrapped, onRejected)
-    }
+    return context
+  }
 
-    return wrapped
+  context.catchSync = function catchSync (onRejected) {
+    return context.thenSync(undefined, onRejected)
   }
 
   function commit (promiseState, value) {
-    let wrapped
+    let state = store.state[moduleName]
+    let update = false
 
-    if (enabled) {
+    if (state.enabled && state.contexts[key] === context) {
+      update = true
       store.commit(`${moduleName}/update`, {
         key,
         promiseState,
         syncQueue,
         value
       })
-
-      const moduleState = store.state[moduleName]
-
-      if (!moduleState) {
-        return Promise.reject(
-          new Error(`Invalid state for module: ${moduleName}`)
-        )
-      }
-
-      wrapped = moduleState[key]
-
-      if (!wrapped) {
-        return Promise.reject(
-          new Error(`Invalid state for key: ${key} in module: ${moduleName}`)
-        )
-      }
-    } else {
-      wrapped = rawWrapped
-      startResolveSync(wrapped, promiseState, value, syncQueue)
     }
 
-    if (wrapped.isFulfilled) return wrapped.value
-    if (wrapped.isRejected) return Promise.reject(wrapped.reason)
+    !update && runSyncQueue(context, promiseState, value, syncQueue)
 
-    return wrapped.promise
+    return context.isFulfilled ? context.value : Promise.reject(context.reason)
   }
 
-  rawWrapped.promise = rawWrapped.promise.then(
+  context.promise = context.promise.then(
     value => commit(true, value),
     value => commit(false, value)
   )
+}
 
-  rawWrapped.destroy = function destroy () {
-    const length = syncQueue.length
-
-    if (length) syncQueue.splice(0, length)
-
-    if (enabled) {
-      // eslint-disable-next-line no-underscore-dangle
-      store.commit(`${moduleName}/destroy`, {
-        key,
-        deleteFunc: store._vm.$delete
-      })
-    }
+function createContext (promiseOrExecutor, store, moduleName, key) {
+  const context = {
+    isFulfilled: false,
+    isPending: true,
+    isRejected: false,
+    promise: typeof promiseOrExecutor === 'function'
+      ? new Promise(promiseOrExecutor)
+      : promiseOrExecutor,
+    reason: undefined,
+    value: undefined
   }
+
+  attachMethods(context, store, moduleName, key)
+
+  return context
+}
+
+function resolveAllThen ({ commit, dispatch, getters }, mutation) {
+  return new Promise((resolve) => {
+    function cb () {
+      commit(mutation)
+
+      resolve()
+    }
+
+    getters.hasPendingPromises ? dispatch('resolveAll').then(cb) : cb()
+  })
 }
 
 function registerModule (store, moduleName) {
+  const state = store.state[moduleName]
+
   store.registerModule(moduleName, {
     namespaced: true,
 
-    state: {},
+    state: {
+      enabled: state && 'enabled' in state ? !!state.enabled : true,
+      contexts: Object.assign(
+        Object.create(null),
+        (state && state.contexts) || {}
+      )
+    },
 
     actions: {
-      finalize ({ commit, getters }) {
-        return new Promise((resolve) => {
-          const promises = getters.pendingPromises
+      disable (actionContext) {
+        return resolveAllThen(actionContext, 'disable')
+      },
 
-          if (!promises.length) {
-            commit('finalize')
+      finalize (actionContext) {
+        return resolveAllThen(actionContext, 'finalize')
+      },
 
-            return resolve()
-          }
-
-          Promise
-            .all(promises.map(p => p.catch(() => {})))
-            .then(() => {
-              commit('finalize')
-
-              resolve()
-            })
-        })
+      resolveAll ({ getters }) {
+        return Promise.all(getters.pendingPromises.map(p => p.catch(noop)))
       }
     },
 
@@ -160,17 +157,17 @@ function registerModule (store, moduleName) {
         return !!getters.pendingPromises.length
       },
 
+      installed () {
+        return true
+      },
+
       pendingPromises (state) {
         const promises = []
 
-        Object.keys(state).forEach((key) => {
-          const wrapped = state[key]
+        each(state.contexts, (context) => {
+          const p = context.promise
 
-          if (wrapped.isPending) {
-            const p = wrapped.promise
-
-            if (p) promises.push(p)
-          }
+          p && promises.push(p)
         })
 
         return promises
@@ -178,22 +175,23 @@ function registerModule (store, moduleName) {
     },
 
     mutations: {
-      create (state, { key, wrapped, set }) {
-        if (state[key]) {
-          Object.assign(state[key], wrapped)
-        } else {
-          set(state, key, wrapped)
-        }
+      create (state, { context, key }) {
+        state.contexts = { ...state.contexts, [key]: context }
       },
 
-      destroy (state, { key, deleteFunc }) {
-        if (state[key]) deleteFunc(state, key)
+      disable (state) {
+        state.enabled = false
+        state.contexts = Object.create(null)
+      },
+
+      enable (state) {
+        state.enabled = true
       },
 
       finalize (state) {
-        Object.keys(state).forEach((wrapped) => {
-          Object.assign(wrapped, {
-            destroy: undefined,
+        each(state.contexts, (context) => {
+          Object.assign(context, {
+            catchSync: undefined,
             promise: undefined,
             thenSync: undefined
           })
@@ -201,175 +199,84 @@ function registerModule (store, moduleName) {
       },
 
       restore (state, { key }) {
-        const wrapped = state[key]
+        const context = state.contexts[key]
 
-        if (!wrapped || wrapped.isPending) return
+        if (!context || context.isPending) return
 
-        let promiseObj = wrapped.promise
+        let p = context.promise
 
-        if (!promiseObj || !promiseObj.then) {
-          promiseObj = wrapped.isFulfilled
-            ? Promise.resolve(wrapped.value)
-            : Promise.reject(wrapped.reason)
+        if (!p || !p.then) {
+          p = context.isFulfilled
+            ? Promise.resolve(context.value)
+            : Promise.reject(context.reason)
 
-          wrapped.promise = promiseObj
+          context.promise = p
         }
 
-        if (!wrapped.thenSync) {
-          attachMethods(wrapped, store, moduleName, key)
-        }
+        !context.thenSync && attachMethods(context, store, moduleName, key)
       },
 
       update (state, { key, promiseState, syncQueue, value }) {
-        const wrapped = state[key]
+        const context = state.contexts[key]
 
-        if (!wrapped) return
+        if (!context) return
 
-        startResolveSync(wrapped, promiseState, value, syncQueue)
+        runSyncQueue(context, promiseState, value, syncQueue)
       }
     }
   })
 }
 
-function wrapPromise (promiseOrFactory, store, moduleName, key) {
-  const wrapped = {
-    isFulfilled: false,
-    isPending: true,
-    isRejected: false,
-    promise: typeof promiseOrFactory === 'function'
-      ? promiseOrFactory()
-      : promiseOrFactory,
-    reason: undefined,
-    value: undefined
-  }
-
-  attachMethods(wrapped, store, moduleName, key)
-
-  return wrapped
-}
-
-function getTarget (options) {
+function promise (key, promiseOrExecutor, options = {}) {
   const store = options.store || defaultStore
 
-  if (!store) return {}
+  if (!store) throw new Error('vue-vuex-promise-store is not installed.')
 
-  const moduleName = options.moduleName || defaultModuleName || MODULE_NAME
+  const moduleName = options.moduleName || defaultModuleName
 
-  return {
-    moduleName,
-    store,
-    state: store.state[moduleName]
+  if (!store.getters[`${moduleName}/installed`]) {
+    registerModule(store, moduleName)
   }
-}
 
-export function promise (key, promiseOrFactory, options = {}) {
-  if (!enabled) return wrapPromise(promiseOrFactory)
+  const state = store.state[moduleName]
 
-  const target = getTarget(options)
-  const { moduleName, store } = target
-  let { state } = target
-
-  if (!store) {
-    if (process.env.NODE_ENV !== 'production') {
-      // eslint-disable-next-line no-console
-      console.error('vue-vuex-promise-store is not installed.')
-    }
-
-    return null
+  if (!state.enabled) {
+    return createContext(promiseOrExecutor, store, moduleName, key)
   }
 
   const refresh = !!options.refresh
+  let context = state.contexts[key]
 
-  if (!state) {
-    registerModule(store, moduleName)
-    state = store.state[moduleName]
-  }
+  if (!refresh && context) {
+    if (context.thenSync) return context
 
-  let wrapped = state[key]
+    if (!context.isPending) {
+      store.commit(`${moduleName}/restore`, { key })
 
-  if (!refresh && wrapped) {
-    if (wrapped.thenSync) return wrapped
-
-    if (!wrapped.isPending) {
-      store.commit(`${moduleName}/restore`, {
-        key,
-        moduleName,
-        store
-      })
-
-      return state[key]
+      return state.contexts[key]
     }
   }
-
-  wrapped = wrapPromise(promiseOrFactory, store, moduleName, key)
 
   store.commit(`${moduleName}/create`, {
     key,
-    wrapped,
-    set: store._vm.$set // eslint-disable-line no-underscore-dangle
+    context: createContext(promiseOrExecutor, store, moduleName, key)
   })
 
-  return wrapped
+  return state.contexts[key]
 }
 
-export function disable () {
-  enabled = false
-}
-
-export function enable () {
-  enabled = true
-}
-
-export function isEnabled () {
-  return enabled
-}
-
-export function resolveAllPendingPromises (options = {}) {
-  const { state } = getTarget(options)
-
-  if (!state) return null
-
-  const promises = []
-
-  Object.keys(state).forEach((key) => {
-    const wrapped = state[key]
-
-    if (wrapped.isPending) {
-      promises.push(wrapped.promise.catch(() => {}))
-    }
-  })
-
-  return promises.length ? Promise.all(promises) : null
-}
-
-export function removeAll (options = {}) {
-  const { state, store } = getTarget(options)
-
-  if (!state) return
-
-  Object.keys(state).forEach((key) => {
-    // eslint-disable-next-line no-underscore-dangle
-    store._vm.$delete(state, key)
-  })
-}
-
-export const plugin = {
-  vue: {
-    install (Vue, options) {
-      Vue.prototype.$promise = function $promise (key, promiseOrFactory) {
-        return promise(key, promiseOrFactory, options)
-      }
-    }
-  },
-
-  vuex (options = {}) {
+function plugin (options = {}) {
+  return function promiseStorePlugin (store) {
+    defaultStore = store
     defaultModuleName = options.moduleName || MODULE_NAME
 
-    return function promiseStorePlugin (store) {
-      defaultStore = store
-      enabled = true
-
-      registerModule(store, defaultModuleName)
-    }
+    registerModule(store, defaultModuleName)
   }
+}
+
+export default {
+  MODULE_NAME,
+  plugin,
+  promise,
+  version: '__VERSION__'
 }
