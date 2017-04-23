@@ -9,5 +9,5 @@ engines:
 ratings:
   paths:
     - "**.js"
-exlude_paths:
+exclude_paths:
   - "**/__tests__/"
