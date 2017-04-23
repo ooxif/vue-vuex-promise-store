@@ -20,6 +20,8 @@ function runSyncQueue (context, promiseState, value, syncQueue) {
   const isPending = promiseState === null
   const isRejected = promiseState === false
 
+  if (isPending) throw new Error('Invalid promise status')
+
   Object.assign(context, {
     isFulfilled,
     isPending,
@@ -28,12 +30,6 @@ function runSyncQueue (context, promiseState, value, syncQueue) {
     reason: isRejected ? value : undefined,
     value: isFulfilled ? value : undefined
   })
-
-  if (isPending) {
-    context.promise = value
-
-    return
-  }
 
   if (!syncQueue.length) return
 
@@ -139,6 +135,10 @@ function registerModule (store, moduleName) {
     },
 
     actions: {
+      enable ({ commit }) {
+        commit('enable')
+      },
+
       disable (actionContext) {
         return resolveAllThen(actionContext, 'disable')
       },
