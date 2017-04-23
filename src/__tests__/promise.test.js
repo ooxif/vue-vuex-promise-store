@@ -298,3 +298,45 @@ test('disabled', async () => {
   u.isFulfilled(context4, 4)
   expect(u.state(store)).not.toHaveProperty(key)
 })
+
+test('with another store', async () => {
+  const store1 = u.createStore()
+  const store2 = u.createStore()
+  const key = 'key'
+  const module1 = 'promise1'
+  const module2 = 'promise2'
+
+  const context11 = u.promise(key, Promise.resolve(true), {
+    store: store1,
+    moduleName: module1
+  })
+
+  u.toBe(store1.state[module1].contexts[key], context11)
+
+  const context12 = u.promise(key, Promise.resolve(true), {
+    store: store1,
+    moduleName: module2
+  })
+
+  u.toBe(store1.state[module1].contexts[key], context11)
+  u.toBe(store1.state[module2].contexts[key], context12)
+
+  const context21 = u.promise(key, Promise.resolve(true), {
+    store: store2,
+    moduleName: module1
+  })
+
+  u.toBe(store1.state[module1].contexts[key], context11)
+  u.toBe(store1.state[module2].contexts[key], context12)
+  u.toBe(store2.state[module1].contexts[key], context21)
+
+  const context22 = u.promise(key, Promise.resolve(true), {
+    store: store2,
+    moduleName: module2
+  })
+
+  u.toBe(store1.state[module1].contexts[key], context11)
+  u.toBe(store1.state[module2].contexts[key], context12)
+  u.toBe(store2.state[module1].contexts[key], context21)
+  u.toBe(store2.state[module2].contexts[key], context22)
+})

@@ -29,3 +29,17 @@ test('action finalize', async () => {
   })
   u.inStore(context, store, key)
 })
+
+test('disable => enable', async () => {
+  const store = u.createStore()
+
+  u.toBe(u.state(store).enabled, true)
+
+  await u.dispatch(store, 'disable')
+
+  u.toBe(u.state(store).enabled, false)
+
+  u.dispatch(store, 'enable')
+
+  u.toBe(u.state(store).enabled, true)
+})
