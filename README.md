@@ -9,6 +9,7 @@
 [![Dependency Status](https://david-dm.org/ooxif/vue-vuex-promise-store.svg)](https://david-dm.org/ooxif/vue-vuex-promise-store)
 [![devDependency Status](https://david-dm.org/ooxif/vue-vuex-promise-store/dev-status.svg)](https://david-dm.org/ooxif/vue-vuex-promise-store/?type=dev)
 [![peerDependency Status](https://david-dm.org/ooxif/vue-vuex-promise-store/peer-status.svg)](https://david-dm.org/ooxif/vue-vuex-promise-store/?type=peer)
+[![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg)](http://standardjs.com)
 
 Wraps promises to save resolved data to vuex store.
 
