@@ -6,6 +6,7 @@
 [![CircleCI Status](https://circleci.com/gh/ooxif/vue-vuex-promise-store.svg?style=shield)](https://circleci.com/gh/ooxif/vue-vuex-promise-store)
 [![Coverage Status](https://img.shields.io/coveralls/ooxif/vue-vuex-promise-store/master.svg)](https://coveralls.io/github/ooxif/vue-vuex-promise-store?branch=master)
 [![Code Climate Status](https://codeclimate.com/github/ooxif/vue-vuex-promise-store.svg)](https://codeclimate.com/github/ooxif/vue-vuex-promise-store)
+[![codecov](https://codecov.io/gh/ooxif/vue-vuex-promise-store/branch/master/graph/badge.svg)](https://codecov.io/gh/ooxif/vue-vuex-promise-store)
 [![Dependency Status](https://david-dm.org/ooxif/vue-vuex-promise-store.svg)](https://david-dm.org/ooxif/vue-vuex-promise-store)
 [![devDependency Status](https://david-dm.org/ooxif/vue-vuex-promise-store/dev-status.svg)](https://david-dm.org/ooxif/vue-vuex-promise-store/?type=dev)
 [![peerDependency Status](https://david-dm.org/ooxif/vue-vuex-promise-store/peer-status.svg)](https://david-dm.org/ooxif/vue-vuex-promise-store/?type=peer)
