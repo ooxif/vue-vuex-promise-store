@@ -1,3 +1,4 @@
+/* eslint-disable prefer-promise-reject-errors */
 import * as u from './util'
 
 test('registers a module', () => {
@@ -42,4 +43,26 @@ test('disable => enable', async () => {
   u.dispatch(store, 'enable')
 
   u.toBe(u.state(store).enabled, true)
+})
+
+test('pendingPromises', async () => {
+  const store = u.createStore()
+
+  const context1 = u.promise('key1', Promise.resolve(1))
+  const context2 = u.promise('key2', () => {})
+  const context3 = u.promise('key3', Promise.reject(3))
+  const context4 = u.promise('key4', () => {})
+
+  expect(Object.keys(u.state(store).contexts)).toHaveLength(4)
+  expect(u.get(store, 'pendingPromises')).toHaveLength(4)
+
+  await Promise.all([context1, context3.promise.catch(() => {})])
+
+  expect(Object.keys(u.state(store).contexts)).toHaveLength(4)
+
+  const pendingPromises = u.get(store, 'pendingPromises')
+
+  expect(pendingPromises).toHaveLength(2)
+  expect(pendingPromises).toContain(context2.promise)
+  expect(pendingPromises).toContain(context4.promise)
 })

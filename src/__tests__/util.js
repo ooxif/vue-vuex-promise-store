@@ -20,7 +20,7 @@ export function state (store) {
 }
 
 export function get (store, getter) {
-  return store.getters[`${MODULE_NAME}/getter`]
+  return store.getters[`${MODULE_NAME}/${getter}`]
 }
 
 export function dispatch (store, action, arg) {

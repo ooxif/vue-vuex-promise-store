@@ -165,9 +165,11 @@ function registerModule (store, moduleName) {
         const promises = []
 
         each(state.contexts, (context) => {
-          const p = context.promise
+          if (context.isPending) {
+            const p = context.promise
 
-          p && promises.push(p)
+            p && promises.push(p)
+          }
         })
 
         return promises
