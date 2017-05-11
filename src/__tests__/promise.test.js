@@ -1,4 +1,5 @@
 /* eslint-disable prefer-promise-reject-errors */
+/* eslint-disable no-throw-literal */
 import * as u from './util'
 
 test('promise lifecycle (resolve)', async () => {
@@ -30,105 +31,197 @@ test('promise lifecycle (reject)', async () => {
 })
 
 test('promise lifecycle (resolve thenSync)', async () => {
-  const store = u.createStore()
+  u.createStore()
   const key = 'key'
   let counter = 1
 
-  const context1 = u.promise(key, (resolve) => {
+  const a = u.promise(key, (resolve) => {
     u.toBe(counter += 1, 2)
-    resolve(counter)
+    resolve('a')
   })
-    .catchSync(u.notToBeCalled)
-    .thenSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 4)
-    }, u.notToBeCalled)
-    .thenSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 5)
-    }, u.notToBeCalled)
 
-  u.isPending(context1)
-  u.inStore(context1, store, key)
+  const b = a.thenSync((value) => {
+    u.toBe(value, 'a')
+    counter += 1
+
+    return 'b'
+  }, u.notToBeCalled)
+
+  const c = b.thenSync((value) => {
+    u.toBe(value, 'b')
+    counter += 1
+
+    return 'c'
+  }, u.notToBeCalled)
+
+  const d = a.thenSync((value) => {
+    u.toBe(value, 'a')
+    counter += 1
+
+    return 'd'
+  }, u.notToBeCalled)
+
+  u.toBe(counter += 1, 3)
+  u.isPending(a)
+  u.isPending(b)
+  u.isPending(c)
+  u.isPending(d)
+
+  await u.resolves(a, 'a')
+
+  u.toBe(counter += 1, 7)
+  u.isFulfilled(a, 'a')
+  u.isFulfilled(b, 'b')
+  u.isFulfilled(c, 'c')
+  u.isFulfilled(d, 'd')
+  await u.resolves(b, 'b')
+  await u.resolves(c, 'c')
+  await u.resolves(d, 'd')
+})
+
+test('promise lifecycle (resolve thenSync in sync)', async () => {
+  u.createStore()
+  const key = 'key'
+  let counter = 1
+
+  const a = u.promise(key, (resolve) => {
+    u.toBe(counter += 1, 2)
+    resolve('a')
+  })
+
   u.toBe(counter += 1, 3)
 
-  await u.resolves(context1, 2)
+  await u.resolves(a, 'a')
 
-  u.toBe(counter += 1, 6)
-  u.isFulfilled(context1, 2)
-  u.inStore(context1, store, key)
+  u.toBe(counter += 1, 4)
 
-  const context2 = u.promise(key, u.notToBeCalled)
-    .catchSync(u.notToBeCalled)
-    .thenSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 7)
-    }, u.notToBeCalled)
-    .thenSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 8)
-    }, u.notToBeCalled)
+  const b = a.thenSync((value) => {
+    u.toBe(value, 'a')
+    u.toBe(counter += 1, 5)
 
-  u.toBe(counter, 8)
-  u.toBe(context2, context1)
-  u.isFulfilled(context2, 2)
-  u.inStore(context2, store, key)
+    return 'b'
+  })
 
-  await u.resolves(context2, 2)
+  u.isFulfilled(b, 'b')
 
-  u.toBe(counter, 8)
-  u.isFulfilled(context2, 2)
-  u.inStore(context2, store, key)
+  const c = b.thenSync((value) => {
+    u.toBe(value, 'b')
+    u.toBe(counter += 1, 6)
+
+    return 'c'
+  })
+
+  u.isFulfilled(c, 'c')
+
+  const d = a.thenSync((value) => {
+    u.toBe(value, 'a')
+    u.toBe(counter += 1, 7)
+
+    return 'd'
+  })
+
+  u.isFulfilled(d, 'd')
+
+  await u.resolves(b, 'b')
+  await u.resolves(c, 'c')
+  await u.resolves(d, 'd')
 })
 
 test('promise lifecycle (reject thenSync)', async () => {
-  const store = u.createStore()
+  u.createStore()
   const key = 'key'
   let counter = 1
 
-  const context1 = u.promise(key, (resolve, reject) => {
+  const a = u.promise(key, (resolve, reject) => {
     u.toBe(counter += 1, 2)
-    reject(counter)
+    reject('a')
   })
-    .thenSync(u.notToBeCalled, (value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 4)
-    })
-    .catchSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 5)
-    })
 
-  u.isPending(context1)
-  u.inStore(context1, store, key)
+  const b = a.thenSync(u.notToBeCalled, (value) => {
+    u.toBe(value, 'a')
+    counter += 1
+
+    throw 'b'
+  })
+
+  const c = b.thenSync(u.notToBeCalled, (value) => {
+    u.toBe(value, 'b')
+    counter += 1
+
+    throw 'c'
+  })
+
+  const d = a.thenSync(u.notToBeCalled, (value) => {
+    u.toBe(value, 'a')
+    counter += 1
+
+    throw 'd'
+  })
+
+  u.toBe(counter += 1, 3)
+  u.isPending(a)
+  u.isPending(b)
+  u.isPending(c)
+  u.isPending(d)
+
+  await u.rejects(a, 'a')
+
+  u.toBe(counter += 1, 7)
+  u.isRejected(a, 'a')
+  u.isRejected(b, 'b')
+  u.isRejected(c, 'c')
+  u.isRejected(d, 'd')
+  await u.rejects(b, 'b')
+  await u.rejects(c, 'c')
+  await u.rejects(d, 'd')
+})
+
+test('promise lifecycle (resolve thenSync in sync)', async () => {
+  u.createStore()
+  const key = 'key'
+  let counter = 1
+
+  const a = u.promise(key, (resolve, reject) => {
+    u.toBe(counter += 1, 2)
+    reject('a')
+  })
+
   u.toBe(counter += 1, 3)
 
-  await u.rejects(context1, 2)
+  await u.rejects(a, 'a')
 
-  u.toBe(counter += 1, 6)
-  u.isRejected(context1, 2)
-  u.inStore(context1, store, key)
+  u.toBe(counter += 1, 4)
 
-  const context2 = u.promise(key, u.notToBeCalled)
-    .thenSync(u.notToBeCalled, (value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 7)
-    }, u.notToBeCalled)
-    .catchSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 8)
-    })
+  const b = a.thenSync(u.notToBeCalled, (value) => {
+    u.toBe(value, 'a')
+    u.toBe(counter += 1, 5)
 
-  u.toBe(counter, 8)
-  u.toBe(context2, context1)
-  u.isRejected(context2, 2)
-  u.inStore(context2, store, key)
+    throw 'b'
+  })
 
-  await u.rejects(context2, 2)
+  u.isRejected(b, 'b')
 
-  u.toBe(counter, 8)
-  u.isRejected(context2, 2)
-  u.inStore(context2, store, key)
+  const c = b.thenSync(u.notToBeCalled, (value) => {
+    u.toBe(value, 'b')
+    u.toBe(counter += 1, 6)
+
+    throw 'c'
+  })
+
+  u.isRejected(c, 'c')
+
+  const d = a.thenSync(u.notToBeCalled, (value) => {
+    u.toBe(value, 'a')
+    u.toBe(counter += 1, 7)
+
+    throw 'd'
+  })
+
+  u.isRejected(d, 'd')
+
+  await u.rejects(b, 'b')
+  await u.rejects(c, 'c')
+  await u.rejects(d, 'd')
 })
 
 test('restored pending promise', async () => {
@@ -142,23 +235,32 @@ test('restored pending promise', async () => {
 
   let counter = 1
 
-  const context = u.promise(key, (resolve) => {
+  const a = u.promise(key, (resolve) => {
     u.toBe(counter += 1, 2)
-    resolve(counter)
-  }).thenSync((value) => {
-    u.toBe(value, 2)
+    resolve('a')
+  })
+
+  const b = a.thenSync((value) => {
+    u.toBe(value, 'a')
     u.toBe(counter += 1, 4)
+
+    return 'b'
   })
 
   u.toBe(counter += 1, 3)
-  u.isPending(context)
-  u.inStore(context, store, key)
+  u.isPending(a)
+  u.isPending(b)
+  u.inStore(a, store, key)
 
-  await u.resolves(context, 2)
+  await u.resolves(a, 'a')
 
   u.toBe(counter, 4)
-  u.isFulfilled(context, 2)
-  u.inStore(context, store, key)
+  u.isFulfilled(a, 'a')
+  u.inStore(a, store, key)
+
+  u.isFulfilled(b, 'b')
+
+  await u.resolves(b, 'b')
 })
 
 test('restored fulfilled promise', async () => {
@@ -166,28 +268,36 @@ test('restored fulfilled promise', async () => {
 
   const store = u.createStore({}, {
     contexts: {
-      [key]: u.createFulfilled(2)
+      [key]: u.createFulfilled('a')
     }
   })
 
   let counter = 1
 
-  const context = u.promise(key, u.notToBeCalled)
-    .catchSync(u.notToBeCalled)
-    .thenSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 2)
-    })
+  const a = u.promise(key, u.notToBeCalled)
+  const b = a.catchSync(u.notToBeCalled)
+  const c = b.thenSync((value) => {
+    u.toBe(value, 'a')
+    u.toBe(counter += 1, 2)
+
+    return 'c'
+  })
 
   u.toBe(counter += 1, 3)
-  u.isFulfilled(context, 2)
-  u.inStore(context, store, key)
+  u.isFulfilled(a, 'a')
+  u.isFulfilled(b, 'a')
+  u.isFulfilled(c, 'c')
+  u.inStore(a, store, key)
 
-  await u.resolves(context, 2)
+  await u.resolves(c, 'c')
+  await u.resolves(b, 'a')
+  await u.resolves(a, 'a')
 
   u.toBe(counter, 3)
-  u.isFulfilled(context, 2)
-  u.inStore(context, store, key)
+  u.isFulfilled(a, 'a')
+  u.isFulfilled(b, 'a')
+  u.isFulfilled(c, 'c')
+  u.inStore(a, store, key)
 })
 
 test('restored rejected promise', async () => {
@@ -195,27 +305,36 @@ test('restored rejected promise', async () => {
 
   const store = u.createStore({}, {
     contexts: {
-      [key]: u.createRejected(2)
+      [key]: u.createRejected('a')
     }
   })
 
   let counter = 1
 
-  const context = u.promise(key, u.notToBeCalled)
-    .thenSync(u.notToBeCalled, (value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 2)
-    })
+  const a = u.promise(key, u.notToBeCalled)
+  const b = a.thenSync(u.notToBeCalled)
+  const c = b.thenSync(u.notToBeCalled, (value) => {
+    u.toBe(value, 'a')
+    u.toBe(counter += 1, 2)
+
+    throw 'c'
+  })
 
   u.toBe(counter += 1, 3)
-  u.isRejected(context, 2)
-  u.inStore(context, store, key)
+  u.isRejected(a, 'a')
+  u.isRejected(b, 'a')
+  u.isRejected(c, 'c')
+  u.inStore(a, store, key)
 
-  await u.rejects(context, 2)
+  await u.rejects(c, 'c')
+  await u.rejects(b, 'a')
+  await u.rejects(a, 'a')
 
   u.toBe(counter, 3)
-  u.isRejected(context, 2)
-  u.inStore(context, store, key)
+  u.isRejected(a, 'a')
+  u.isRejected(b, 'a')
+  u.isRejected(c, 'c')
+  u.inStore(a, store, key)
 })
 
 test('disabled', async () => {
@@ -223,79 +342,96 @@ test('disabled', async () => {
   const key = 'key'
   let counter = 1
 
-  const context1 = u.promise(key, (resolve) => {
+  const a1 = u.promise(key, (resolve) => {
     u.toBe(counter += 1, 2)
     resolve(2)
   })
-    .thenSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 4)
-    })
+
+  const a2 = a1.thenSync((value) => {
+    u.toBe(value, 2)
+    u.toBe(counter += 1, 4)
+
+    return counter
+  })
 
   u.toBe(counter += 1, 3)
-  u.isPending(context1)
-  u.inStore(context1, store, key)
+  u.isPending(a1)
+  u.isPending(a2)
+  u.inStore(a1, store, key)
 
-  await u.resolves(context1, 2)
+  await u.resolves(a1, 2)
 
   u.toBe(counter, 4)
-  u.isFulfilled(context1, 2)
-  u.inStore(context1, store, key)
+  u.isFulfilled(a1, 2)
+  u.isFulfilled(a2, 4)
+  u.inStore(a1, store, key)
 
-  const context2 = u.promise(key, u.notToBeCalled)
-    .thenSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 5)
-    })
+  const b1 = u.promise(key, u.notToBeCalled)
+  const b2 = b1.thenSync((value) => {
+    u.toBe(value, 2)
+    u.toBe(counter += 1, 5)
+
+    return counter
+  })
 
   u.toBe(counter, 5)
-  u.isFulfilled(context2, 2)
-  u.toBe(context1, context2)
-  u.inStore(context2, store, key)
+  u.isFulfilled(b1, 2)
+  u.isFulfilled(b2, 5)
+  u.toBe(a1, b1)
+  u.inStore(b1, store, key)
 
   await u.dispatch(store, 'disable')
 
-  u.isFulfilled(context2, 2)
+  u.isFulfilled(b1, 2)
+  u.isFulfilled(b2, 5)
   expect(u.state(store)).not.toHaveProperty(key)
 
-  const context3 = u.promise(key, (resolve) => {
+  const c1 = u.promise(key, (resolve) => {
     u.toBe(counter += 1, 6)
     resolve(3)
   })
-    .thenSync((value) => {
-      u.toBe(value, 3)
-      u.toBe(counter += 1, 8)
-    })
+  const c2 = c1.thenSync((value) => {
+    u.toBe(value, 3)
+    u.toBe(counter += 1, 8)
+
+    return counter
+  })
 
   u.toBe(counter += 1, 7)
-  u.isPending(context3)
-  expect(context3).not.toBe(context2)
+  u.isPending(c1)
+  u.isPending(c2)
+  expect(c1).not.toBe(b1)
   expect(u.state(store)).not.toHaveProperty(key)
 
-  await u.resolves(context3, 3)
+  await u.resolves(c1, 3)
 
   u.toBe(counter, 8)
-  u.isFulfilled(context3, 3)
+  u.isFulfilled(c1, 3)
+  u.isFulfilled(c2, 8)
   expect(u.state(store)).not.toHaveProperty(key)
 
-  const context4 = u.promise(key, (resolve) => {
+  const d1 = u.promise(key, (resolve) => {
     u.toBe(counter += 1, 9)
     resolve(4)
   })
-    .thenSync((value) => {
-      u.toBe(value, 4)
-      u.toBe(counter += 1, 11)
-    })
+  const d2 = d1.thenSync((value) => {
+    u.toBe(value, 4)
+    u.toBe(counter += 1, 11)
+
+    return counter
+  })
 
   u.toBe(counter += 1, 10)
-  u.isPending(context4)
-  expect(context4).not.toBe(context3)
+  u.isPending(d1)
+  u.isPending(d2)
+  expect(d1).not.toBe(c1)
   expect(u.state(store)).not.toHaveProperty(key)
 
-  await u.resolves(context4, 4)
+  await u.resolves(d1, 4)
 
   u.toBe(counter, 11)
-  u.isFulfilled(context4, 4)
+  u.isFulfilled(d1, 4)
+  u.isFulfilled(d2, 11)
   expect(u.state(store)).not.toHaveProperty(key)
 })
 
@@ -344,27 +480,37 @@ test('with another store', async () => {
 test('resolve', async () => {
   let counter = 1
 
-  const context = u.resolve(1).thenSync((value) => {
+  const a = u.resolve('a')
+  const b = a.thenSync((value) => {
+    u.toBe(value, 'a')
     u.toBe(counter += 1, 2)
-    u.toBe(value, 1)
+
+    return 'b'
   }, u.notToBeCalled)
 
   u.toBe(counter += 1, 3)
-  u.isFulfilled(context, 1)
+  u.isFulfilled(a, 'a')
+  u.isFulfilled(b, 'b')
 
-  await u.resolves(context, 1)
+  await u.resolves(a, 'a')
+  await u.resolves(b, 'b')
 })
 
 test('reject', async () => {
   let counter = 1
 
-  const context = u.reject(1).thenSync(u.notToBeCalled, (reason) => {
+  const a = u.reject('a')
+  const b = a.thenSync(u.notToBeCalled, (reason) => {
+    u.toBe(reason, 'a')
     u.toBe(counter += 1, 2)
-    u.toBe(reason, 1)
+
+    throw 'b'
   })
 
   u.toBe(counter += 1, 3)
-  u.isRejected(context, 1)
+  u.isRejected(a, 'a')
+  u.isRejected(b, 'b')
 
-  await u.rejects(context, 1)
+  await u.rejects(a, 'a')
+  await u.rejects(b, 'b')
 })

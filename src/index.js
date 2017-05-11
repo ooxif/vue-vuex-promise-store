@@ -11,88 +11,115 @@ function each (object, iteratee) {
 
 function noop () {}
 
-function handleSync (context, handler) {
-  handler(context.isFulfilled ? context.value : context.reason)
-}
-
-function runSyncQueue (context, promiseState, value, syncQueue) {
-  const isFulfilled = promiseState === true
-  const isPending = promiseState === null
-  const isRejected = promiseState === false
-
-  if (isPending) throw new Error('Invalid promise status')
-
-  Object.assign(context, {
-    isFulfilled,
-    isPending,
-    isRejected,
-
-    reason: isRejected ? value : undefined,
-    value: isFulfilled ? value : undefined
-  })
-
-  if (!syncQueue.length) return
-
-  let item
-
-  while ((item = syncQueue.shift())) {
-    (item[0] === isFulfilled) && handleSync(context, item[1])
+function handleResolve (handler, value) {
+  try {
+    return [true, handler(value)]
+  } catch (e) {
+    return [false, e]
   }
 }
 
-function attachMethods (context, store, moduleName, key) {
-  const syncQueue = []
+function updateContext (context, isFulfilled, value, syncQueue) {
+  context.isPending = false
+
+  if (isFulfilled) {
+    context.isFulfilled = true
+    context.value = value
+  } else {
+    context.isRejected = true
+    context.reason = value
+  }
+
+  if (!syncQueue.length) return
+
+  const offset = isFulfilled ? 0 : 1
+  let values
+
+  while ((values = syncQueue.shift())) {
+    const handler = values[offset + 2] // onFulfilled or onRejected
+
+    const [ok, result] = handler
+      ? handleResolve(handler, value)
+      : [isFulfilled, value]
+
+    ok ? values[0](result) : values[1](result)
+
+    updateContext(values[4], ok, result, values[5])
+  }
+}
+
+function attachMethods (context, store, moduleName, key, queue) {
+  const syncQueue = queue || []
 
   context.thenSync = function thenSync (onFulfilled, onRejected) {
-    if (context.isPending) {
-      onFulfilled && syncQueue.push([true, onFulfilled])
-      onRejected && syncQueue.push([false, onRejected])
+    if (!context.isPending) {
+      let ok
+      let result
 
-      return context
+      if (context.isFulfilled) {
+        [ok, result] = onFulfilled
+          ? handleResolve(onFulfilled, context.value)
+          : [true, context.value]
+      } else {
+        [ok, result] = onRejected
+          ? handleResolve(onRejected, context.reason)
+          : [false, context.reason]
+      }
+
+      return createNoStoreContext(
+        Promise[ok ? 'resolve' : 'reject'](result),
+        ok,
+        result
+      )
     }
 
-    if (context.isFulfilled && onFulfilled) {
-      handleSync(context, onFulfilled)
-    }
+    let newContext
+    let queueValues
+    let newSyncQueue = []
 
-    if (context.isRejected && onRejected) {
-      handleSync(context, onRejected)
-    }
+    const p = new Promise((resolve, reject) => {
+      queueValues = [resolve, reject]
+    })
 
-    return context
+    newContext = createNoStoreContext(p, null, newSyncQueue)
+    syncQueue.push([
+      ...queueValues,
+      onFulfilled,
+      onRejected,
+      newContext,
+      newSyncQueue
+    ])
+
+    return newContext
   }
 
   context.catchSync = function catchSync (onRejected) {
     return context.thenSync(undefined, onRejected)
   }
 
-  if (store) {
-    const commit = function commit (promiseState, value) {
-      let state = store.state[moduleName]
-      let update = false
+  function commit (promiseState, value) {
+    let state = store && store.state[moduleName]
 
-      if (state.enabled && state.contexts[key] === context) {
-        update = true
-        store.commit(`${moduleName}/update`, {
-          key,
-          promiseState,
-          syncQueue,
-          value
-        })
-      }
-
-      !update && runSyncQueue(context, promiseState, value, syncQueue)
-
-      return context.isFulfilled
-        ? context.value
-        : Promise.reject(context.reason)
+    if (state && state.enabled && state.contexts[key] === context) {
+      store.commit(`${moduleName}/update`, {
+        key,
+        promiseState,
+        syncQueue,
+        value
+      })
+    } else {
+      updateContext(context, promiseState, value, syncQueue)
     }
 
-    context.promise = context.promise.then(
-      value => commit(true, value),
-      value => commit(false, value)
-    )
+    return context.isFulfilled
+      ? context.value
+      : Promise.reject(context.reason)
   }
+
+  context.promise = context.promise.then(
+    value => commit(true, value),
+    reason => commit(false, reason)
+  )
 }
 
 function createContext (promiseOrExecutor, store, moduleName, key) {
@@ -107,23 +134,28 @@ function createContext (promiseOrExecutor, store, moduleName, key) {
     value: undefined
   }
 
-  attachMethods(context, store, moduleName, key)
+  attachMethods(context, store, moduleName, key, [])
 
   return context
 }
 
-function createResolvedContext (isFulfilled, value) {
+function createNoStoreContext (promise, state, value) {
   const context = {
-    isFulfilled,
-
-    isPending: false,
-    isRejected: !isFulfilled,
-    promise: Promise[isFulfilled ? 'resolve' : 'reject'](value),
-    reason: isFulfilled ? undefined : value,
-    value: isFulfilled ? value : undefined
+    isFulfilled: state === true,
+    isPending: state === null,
+    isRejected: state === false,
+    promise: promise,
+    reason: state === false ? value : undefined,
+    value: state === true ? value : undefined
   }
 
-  attachMethods(context)
+  attachMethods(
+    context,
+    undefined,
+    undefined,
+    undefined,
+    state === null ? value : []
+  )
 
   return context
 }
@@ -243,7 +275,7 @@ function registerModule (store, moduleName) {
 
         if (!context) return
 
-        runSyncQueue(context, promiseState, value, syncQueue)
+        updateContext(context, promiseState, value, syncQueue)
       }
     }
   })
@@ -288,11 +320,11 @@ function promise (key, promiseOrExecutor, options = {}) {
 }
 
 function resolve (value) {
-  return createResolvedContext(true, value)
+  return createNoStoreContext(Promise.resolve(value), true, value)
 }
 
 function reject (reason) {
-  return createResolvedContext(false, reason)
+  return createNoStoreContext(Promise.reject(reason), false, reason)
 }
 
 function plugin (options = {}) {

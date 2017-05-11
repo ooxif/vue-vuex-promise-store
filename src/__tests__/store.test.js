@@ -10,25 +10,32 @@ test('action finalize', async () => {
   const key = 'key'
   let counter = 1
 
-  const context = u.promise(key, (resolve) => {
+  const context1 = u.promise(key, (resolve) => {
     u.toBe(counter += 1, 2)
     resolve(counter)
+
+    return counter
   })
-    .thenSync((value) => {
-      u.toBe(value, 2)
-      u.toBe(counter += 1, 4)
-    })
+
+  const context2 = context1.thenSync((value) => {
+    u.toBe(value, 2)
+    u.toBe(counter += 1, 4)
+
+    return counter
+  })
 
   u.toBe(counter += 1, 3)
 
   await u.dispatch(store, 'finalize')
 
   u.toBe(counter, 4)
-  u.isFinalized(context, {
+  u.isFinalized(context1, {
     isFulfilled: true,
     value: 2
   })
-  u.inStore(context, store, key)
+  u.inStore(context1, store, key)
+
+  u.isFulfilled(context2, 4)
 })
 
 test('disable => enable', async () => {

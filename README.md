@@ -29,21 +29,28 @@ const uniqueKey = 'unique key is required'
 
 // first time for the unique key
 async function initialInvocation() {
-  const context = promise(uniqueKey, (resolve => {
+  const context = promise(uniqueKey, (resolve) => {
     console.log('first')
 
     setTimeout(() => {
       console.log('third')
       resolve(1)
-    }, 0);
-  }))
+    }, 0)
+  })
     .thenSync((value) => {
       console.log('fourth', value) // 1
-      // thenSync() does not change the promise state nor the resolved value
-      // regardless of the returned value
+      
+      return 'hello'
     })
     .thenSync((value) => {
-      console.log('fifth', value) // 1
+      console.log('fifth', value) // 'hello'
+      
+      return 'world'
+    })
+    .thenSync((value) => {
+      console.log('sixth', value) // 'world'
+      
+      return '!'
     })
 
   console.log('second')
@@ -51,7 +58,7 @@ async function initialInvocation() {
   // context.promise is a Promise
   const last = await context.promise
 
-  console.log('sixth', last) // 1
+  console.log('seventh', last) // '!'
 }
 
 await initialInvocation()
@@ -65,13 +72,15 @@ async function secondInvocation() {
   }))
     .thenSync((value) => {
       console.log('first', value) // 1
+      
+      return 'HELLO'
     })
 
   console.log('second')
 
   const last = await p.promise
 
-  console.log('third', last) // 1
+  console.log('third', last) // 'HELLO'
 }
 ```
 
@@ -86,17 +95,27 @@ const store = new Vuex.Store({
 
 let cache = null
 
-function fetchRemoteData () {
-  if (cache) {
+function fetchRemoteData (useCache = false) {
+  if (useCache && cache) {
     return cache.status ? resolve(cache.value) : reject(cache.value)
   }
   
   return promise('remoteData', fetch('http://example.com/path/to/remoteData'))
     .thenSync((value) => {
       cache = { value, status: true }
+      
+      return value
     }, (reason) => {
       cache = { status: false, value: reason }
+      
+      throw reason
     })
 }
+
+fetchRemoteData(true).thenSync((value) => {
+  // ...
+}, (reason) => {
+  // ...
+})
 
 ```
