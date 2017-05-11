@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "vue-vuex-promise-store",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Wraps promises to save resolved data to vuex store.",
   "author": "oo <oo@xif.at>",
   "license": "MIT",
