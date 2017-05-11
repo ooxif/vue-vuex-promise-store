@@ -73,3 +73,25 @@ test('pendingPromises', async () => {
   expect(pendingPromises).toContain(context2.promise)
   expect(pendingPromises).toContain(context4.promise)
 })
+
+test('restore fails', () => {
+  const store = u.createStore()
+
+  expect(() => u.commit(store, 'restore', { key: 'UNKNOWN' }))
+    .toThrow(/\[vue-vuex-promise-store].*UNKNOWN/)
+})
+
+test('update fails', () => {
+  const store = u.createStore()
+
+  expect(() => u.commit(store, 'update', { key: 'UNKNOWN' }))
+    .toThrow(/\[vue-vuex-promise-store].*UNKNOWN/)
+})
+
+test('with initial state', () => {
+  const store = u.createStore({}, {
+    enabled: false
+  })
+
+  u.toBe(u.state(store).enabled, false)
+})
