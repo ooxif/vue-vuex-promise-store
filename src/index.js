@@ -66,29 +66,33 @@ function attachMethods (context, store, moduleName, key) {
     return context.thenSync(undefined, onRejected)
   }
 
-  function commit (promiseState, value) {
-    let state = store.state[moduleName]
-    let update = false
+  if (store) {
+    const commit = function commit (promiseState, value) {
+      let state = store.state[moduleName]
+      let update = false
 
-    if (state.enabled && state.contexts[key] === context) {
-      update = true
-      store.commit(`${moduleName}/update`, {
-        key,
-        promiseState,
-        syncQueue,
-        value
-      })
+      if (state.enabled && state.contexts[key] === context) {
+        update = true
+        store.commit(`${moduleName}/update`, {
+          key,
+          promiseState,
+          syncQueue,
+          value
+        })
+      }
+
+      !update && runSyncQueue(context, promiseState, value, syncQueue)
+
+      return context.isFulfilled
+        ? context.value
+        : Promise.reject(context.reason)
     }
 
-    !update && runSyncQueue(context, promiseState, value, syncQueue)
-
-    return context.isFulfilled ? context.value : Promise.reject(context.reason)
+    context.promise = context.promise.then(
+      value => commit(true, value),
+      value => commit(false, value)
+    )
   }
-
-  context.promise = context.promise.then(
-    value => commit(true, value),
-    value => commit(false, value)
-  )
 }
 
 function createContext (promiseOrExecutor, store, moduleName, key) {
@@ -104,6 +108,22 @@ function createContext (promiseOrExecutor, store, moduleName, key) {
   }
 
   attachMethods(context, store, moduleName, key)
+
+  return context
+}
+
+function createResolvedContext (isFulfilled, value) {
+  const context = {
+    isFulfilled,
+
+    isPending: false,
+    isRejected: !isFulfilled,
+    promise: Promise[isFulfilled ? 'resolve' : 'reject'](value),
+    reason: isFulfilled ? undefined : value,
+    value: isFulfilled ? value : undefined
+  }
+
+  attachMethods(context)
 
   return context
 }
@@ -267,6 +287,14 @@ function promise (key, promiseOrExecutor, options = {}) {
   return state.contexts[key]
 }
 
+function resolve (value) {
+  return createResolvedContext(true, value)
+}
+
+function reject (reason) {
+  return createResolvedContext(false, reason)
+}
+
 function plugin (options = {}) {
   return function promiseStorePlugin (store) {
     defaultStore = store
@@ -280,5 +308,7 @@ export default {
   MODULE_NAME,
   plugin,
   promise,
+  reject,
+  resolve,
   version: '__VERSION__'
 }

@@ -340,3 +340,31 @@ test('with another store', async () => {
   u.toBe(store2.state[module1].contexts[key], context21)
   u.toBe(store2.state[module2].contexts[key], context22)
 })
+
+test('resolve', async () => {
+  let counter = 1
+
+  const context = u.resolve(1).thenSync((value) => {
+    u.toBe(counter += 1, 2)
+    u.toBe(value, 1)
+  }, u.notToBeCalled)
+
+  u.toBe(counter += 1, 3)
+  u.isFulfilled(context, 1)
+
+  await u.resolves(context, 1)
+})
+
+test('reject', async () => {
+  let counter = 1
+
+  const context = u.reject(1).thenSync(u.notToBeCalled, (reason) => {
+    u.toBe(counter += 1, 2)
+    u.toBe(reason, 1)
+  })
+
+  u.toBe(counter += 1, 3)
+  u.isRejected(context, 1)
+
+  await u.rejects(context, 1)
+})

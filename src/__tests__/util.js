@@ -7,6 +7,8 @@ Vue.use(Vuex)
 export const MODULE_NAME = PromiseStore.MODULE_NAME
 
 export const promise = PromiseStore.promise
+export const resolve = PromiseStore.resolve
+export const reject = PromiseStore.reject
 
 export function createStore (options = {}, state = null) {
   return new Vuex.Store({
