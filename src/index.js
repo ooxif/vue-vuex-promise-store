@@ -3,6 +3,10 @@ const MODULE_NAME = 'promise'
 let defaultStore
 let defaultModuleName
 
+function raise (message) {
+  throw new Error(`[vue-vuex-promise-store] ${message}`)
+}
+
 function each (object, iteratee) {
   return Object.keys(object).forEach((key) => {
     iteratee(object[key], key)
@@ -255,7 +259,7 @@ function registerModule (store, moduleName) {
       restore (state, { key }) {
         const context = state.contexts[key]
 
-        if (!context || context.isPending) return
+        !context && raise(`Failed to restore() an unknown key: ${key}`)
 
         let p = context.promise
 
@@ -273,7 +277,7 @@ function registerModule (store, moduleName) {
       update (state, { key, promiseState, syncQueue, value }) {
         const context = state.contexts[key]
 
-        if (!context) return
+        if (!context) raise(`Failed to update() an unknown key: ${key}`)
 
         updateContext(context, promiseState, value, syncQueue)
       }
@@ -284,7 +288,7 @@ function registerModule (store, moduleName) {
 function promise (key, promiseOrExecutor, options = {}) {
   const store = options.store || defaultStore
 
-  if (!store) throw new Error('vue-vuex-promise-store is not installed.')
+  !store && raise('vue-vuex-promise-store is not installed')
 
   const moduleName = options.moduleName || defaultModuleName
 
