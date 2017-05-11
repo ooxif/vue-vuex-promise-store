@@ -20,9 +20,9 @@ Wraps promises to save resolved data to vuex store.
 import PromiseStore, { promise } from 'vue-vuex-promise-store'
 
 const store = new Vuex.Store({
-  plugins: [PromiseStore.plugin(
+  plugins: [PromiseStore.plugin({
     moduleName: 'promise'
-  )]
+  })]
 })
 
 const uniqueKey = 'unique key is required'
@@ -73,4 +73,30 @@ async function secondInvocation() {
 
   console.log('third', last) // 1
 }
+```
+
+## usage (resolve, reject)
+
+```javascript
+import PromiseStore, { promise, resolve, reject } from 'vue-vuex-promise-store'
+
+const store = new Vuex.Store({
+  plugins: [PromiseStore.plugin()]
+})
+
+let cache = null
+
+function fetchRemoteData () {
+  if (cache) {
+    return cache.status ? resolve(cache.value) : reject(cache.value)
+  }
+  
+  return promise('remoteData', fetch('http://example.com/path/to/remoteData'))
+    .thenSync((value) => {
+      cache = { value, status: true }
+    }, (reason) => {
+      cache = { status: false, value: reason }
+    })
+}
+
 ```
