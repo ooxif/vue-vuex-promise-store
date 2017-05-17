@@ -286,9 +286,17 @@ function registerModule (store, moduleName) {
 }
 
 function promise (key, promiseOrExecutor, options = {}) {
-  const store = options.store || defaultStore
+  const store = 'store' in options ? options.store : defaultStore
 
-  !store && raise('vue-vuex-promise-store is not installed')
+  if (!store) {
+    return createNoStoreContext(
+      typeof promiseOrExecutor === 'function'
+        ? promiseOrExecutor()
+        : promiseOrExecutor,
+      null,
+      undefined
+    )
+  }
 
   const moduleName = options.moduleName || defaultModuleName
 

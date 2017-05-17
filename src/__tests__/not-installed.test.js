@@ -1,6 +1,9 @@
-import { promise } from './util'
+import { isPending, promise } from './util'
 
-test('not-installed', () => {
-  expect(() => promise('key', Promise.resolve(1)))
-    .toThrow(/\[vue-vuex-promise-store]/)
+test('not-installed (with a promise)', () => {
+  isPending(promise('key', Promise.resolve(1)))
+})
+
+test('not-installed (with a function)', () => {
+  isPending(promise('key', () => Promise.resolve(1)))
 })
