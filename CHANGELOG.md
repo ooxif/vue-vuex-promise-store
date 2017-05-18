@@ -10,7 +10,7 @@
 
 ### Added
 
-- add `init` `reject` `resolve` `wrap` getters
+- add `init` getters
 - add `wrap()`
 
 ### Changed
