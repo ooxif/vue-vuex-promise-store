@@ -129,6 +129,12 @@ fetchRemoteData().thenSync((value) => {
 ### Types
 
 ```
+type OnFulfilledSync<T, U> = (value: T) => U
+type OnRejectedSync<T> = (reason: Error) => T
+
+type CatchSync<T> = (onRejected: OnRejectedSync<T>) => Context<T>
+type ThenSync<T> = (onFulfilled: OnFulfilled<T>, onRejected?: OnRejected<T>) => Context<T>
+
 type Context<T> = {
   isFulfilled: boolean, // true if or when the promise is fulfilled
   isPending: boolean, // ditto but is nether fulfilled nor rejected
@@ -137,13 +143,14 @@ type Context<T> = {
   reason: Error | void, // the result of the rejected promise
   value: T | void, // the result of the fulfilled promise
 
-  catchSync<E>: () => Context<E> | void
-  thenSync<U>: () => Context<U> | void
+  catchSync<U>: CatchSync<U> | void
+  thenSync<U>: ThenSync<U> | void
 }
 
-type PromiseOrExecutor<T> =
-  Promise<T>
-  | (resolve: (value: T) => void, reject: (reason: Error) => void) => void
+type Resolve<T> = (value: T) => void
+type Reject = (reason: Error) => void
+type Executor<T> = (resolve: Resolve<T>, reject?: Reject) => void
+type PromiseOrExecutor<T> = Promise<T> | Executor<T>
 
 type ContextOptions = {
   refresh?: boolean
@@ -152,6 +159,8 @@ type ContextOptions = {
 type PluginOptions = {
   moduleName?: string
 }
+
+type PluginInstaller = (store: Vuex.Store) => void
 ```
 
 ### Exports
@@ -160,7 +169,7 @@ type PluginOptions = {
   - is the default module name (is `'promise'`).
 - `VERSION: string`
   - is the version number (like `'1.0.0'`).
-- `plugin: (options?: PluginOptions) => (store: Vuex.Store) => void`
+- `plugin: (options?: PluginOptions) => PluginInstaller`
   - returns a plugin installer function with given options.
 - `reject(reason: Error) => Context<void>`
 - `resolve(value: T) => Context<T>`
