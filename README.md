@@ -211,5 +211,4 @@ type PluginInstaller = (store: Vuex.Store) => void
   - If a given `key` exists in `state.contexts` then returns it
     (instead of creating and storing a new object).
 - `pendingPromises: Array<Context>`
-  - is a function returns an array of pending `Context` objects
-    in `state.contexts`.
+  - is an array of pending `Context` objects in `state.contexts`.
