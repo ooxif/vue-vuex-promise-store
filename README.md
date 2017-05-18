@@ -171,9 +171,9 @@ type PluginInstaller = (store: Vuex.Store) => void
   - is the version number (like `'1.0.0'`).
 - `plugin: (options?: PluginOptions) => PluginInstaller`
   - returns a plugin installer function with given options.
-- `reject(reason: Error) => Context<void>`
-- `resolve(value: T) => Context<T>`
-- `wrap(promise: Promise<T>) => Context<T>`
+- `reject: (reason: Error) => Context<void>`
+- `resolve: (value: T) => Context<T>`
+- `wrap: (promise: Promise<T>) => Context<T>`
   - returns a new `Context` object without stores.
 
 ### State
