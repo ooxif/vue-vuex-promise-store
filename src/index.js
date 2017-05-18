@@ -1,8 +1,5 @@
 const MODULE_NAME = 'promise'
 
-let defaultStore
-let defaultModuleName
-
 function raise (message) {
   throw new Error(`[vue-vuex-promise-store] ${message}`)
 }
@@ -126,14 +123,18 @@ function attachMethods (context, store, moduleName, key, queue) {
   )
 }
 
+function toPromise (promiseOrExecutor) {
+  return typeof promiseOrExecutor === 'function'
+    ? new Promise(promiseOrExecutor)
+    : promiseOrExecutor
+}
+
 function createContext (promiseOrExecutor, store, moduleName, key) {
   const context = {
     isFulfilled: false,
     isPending: true,
     isRejected: false,
-    promise: typeof promiseOrExecutor === 'function'
-      ? new Promise(promiseOrExecutor)
-      : promiseOrExecutor,
+    promise: toPromise(promiseOrExecutor),
     reason: undefined,
     value: undefined
   }
@@ -176,19 +177,33 @@ function resolveAllThen ({ commit, dispatch, getters }, mutation) {
   })
 }
 
-function registerModule (store, moduleName) {
-  const state = store.state[moduleName]
+function resolve (value) {
+  return createNoStoreContext(Promise.resolve(value), true, value)
+}
 
+function reject (reason) {
+  return createNoStoreContext(Promise.reject(reason), false, reason)
+}
+
+function wrap (promiseOrExecutor) {
+  return createNoStoreContext(toPromise(promiseOrExecutor), null, undefined)
+}
+
+function createInitialState (prevState) {
+  return {
+    enabled: prevState && 'enabled' in prevState ? !!prevState.enabled : true,
+    contexts: Object.assign(
+      Object.create(null),
+      (prevState && prevState.contexts) || {}
+    )
+  }
+}
+
+function registerModule (store, moduleName) {
   store.registerModule(moduleName, {
     namespaced: true,
 
-    state: {
-      enabled: state && 'enabled' in state ? !!state.enabled : true,
-      contexts: Object.assign(
-        Object.create(null),
-        (state && state.contexts) || {}
-      )
-    },
+    state: createInitialState(store.state[moduleName]),
 
     actions: {
       enable ({ commit }) {
@@ -205,6 +220,7 @@ function registerModule (store, moduleName) {
 
       resolveAll ({ getters }) {
         return Promise.all(getters.pendingPromises.map(p => p.catch(noop)))
+          .then(() => undefined)
       }
     },
 
@@ -213,8 +229,32 @@ function registerModule (store, moduleName) {
         return !!getters.pendingPromises.length
       },
 
-      installed () {
-        return true
+      init (state) {
+        return (key, promiseOrExecutor, options = {}) => {
+          if (!state.enabled) {
+            return createContext(promiseOrExecutor, store, moduleName, key)
+          }
+
+          const refresh = !!options.refresh
+          let context = state.contexts[key]
+
+          if (!refresh && context) {
+            if (context.thenSync) return context
+
+            if (!context.isPending) {
+              store.commit(`${moduleName}/restore`, { key })
+
+              return state.contexts[key]
+            }
+          }
+
+          store.commit(`${moduleName}/create`, {
+            key,
+            context: createContext(promiseOrExecutor, store, moduleName, key)
+          })
+
+          return state.contexts[key]
+        }
       },
 
       pendingPromises (state) {
@@ -232,6 +272,9 @@ function registerModule (store, moduleName) {
       }
     },
 
+    /**
+     * @internal
+     */
     mutations: {
       create (state, { context, key }) {
         state.contexts = { ...state.contexts, [key]: context }
@@ -285,74 +328,18 @@ function registerModule (store, moduleName) {
   })
 }
 
-function promise (key, promiseOrExecutor, options = {}) {
-  const store = 'store' in options ? options.store : defaultStore
-
-  if (!store) {
-    return createNoStoreContext(
-      typeof promiseOrExecutor === 'function'
-        ? promiseOrExecutor()
-        : promiseOrExecutor,
-      null,
-      undefined
-    )
-  }
-
-  const moduleName = options.moduleName || defaultModuleName
-
-  if (!store.getters[`${moduleName}/installed`]) {
-    registerModule(store, moduleName)
-  }
-
-  const state = store.state[moduleName]
-
-  if (!state.enabled) {
-    return createContext(promiseOrExecutor, store, moduleName, key)
-  }
-
-  const refresh = !!options.refresh
-  let context = state.contexts[key]
-
-  if (!refresh && context) {
-    if (context.thenSync) return context
-
-    if (!context.isPending) {
-      store.commit(`${moduleName}/restore`, { key })
-
-      return state.contexts[key]
-    }
-  }
-
-  store.commit(`${moduleName}/create`, {
-    key,
-    context: createContext(promiseOrExecutor, store, moduleName, key)
-  })
-
-  return state.contexts[key]
-}
-
-function resolve (value) {
-  return createNoStoreContext(Promise.resolve(value), true, value)
-}
-
-function reject (reason) {
-  return createNoStoreContext(Promise.reject(reason), false, reason)
-}
-
 function plugin (options = {}) {
   return function promiseStorePlugin (store) {
-    defaultStore = store
-    defaultModuleName = options.moduleName || MODULE_NAME
-
-    registerModule(store, defaultModuleName)
+    registerModule(store, options.moduleName || MODULE_NAME)
   }
 }
 
 export default {
   MODULE_NAME,
   plugin,
-  promise,
   reject,
   resolve,
-  version: '__VERSION__'
+  wrap,
+
+  VERSION: '__VERSION__'
 }

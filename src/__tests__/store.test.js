@@ -10,7 +10,7 @@ test('action finalize', async () => {
   const key = 'key'
   let counter = 1
 
-  const context1 = u.promise(key, (resolve) => {
+  const context1 = u.promise(store, key, (resolve) => {
     u.toBe(counter += 1, 2)
     resolve(counter)
 
@@ -55,10 +55,10 @@ test('disable => enable', async () => {
 test('pendingPromises', async () => {
   const store = u.createStore()
 
-  const context1 = u.promise('key1', Promise.resolve(1))
-  const context2 = u.promise('key2', () => {})
-  const context3 = u.promise('key3', Promise.reject(3))
-  const context4 = u.promise('key4', () => {})
+  const context1 = u.promise(store, 'key1', Promise.resolve(1))
+  const context2 = u.promise(store, 'key2', () => {})
+  const context3 = u.promise(store, 'key3', Promise.reject(3))
+  const context4 = u.promise(store, 'key4', () => {})
 
   expect(Object.keys(u.state(store).contexts)).toHaveLength(4)
   expect(u.get(store, 'pendingPromises')).toHaveLength(4)

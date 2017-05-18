@@ -6,7 +6,7 @@ Vue.use(Vuex)
 
 export const MODULE_NAME = PromiseStore.MODULE_NAME
 
-export const promise = PromiseStore.promise
+export const wrap = PromiseStore.wrap
 export const resolve = PromiseStore.resolve
 export const reject = PromiseStore.reject
 
@@ -31,6 +31,10 @@ export function dispatch (store, action, arg) {
 
 export function commit (store, mutation, arg) {
   return store.commit(`${MODULE_NAME}/${mutation}`, arg)
+}
+
+export function promise (store, ...args) {
+  return get(store, 'init').apply(null, args)
 }
 
 export function createContext (opts) {

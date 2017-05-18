@@ -14,10 +14,10 @@
 
 Wraps promises to save resolved data to vuex store.
 
-## usage
+## Usage
 
 ```javascript
-import PromiseStore, { promise } from 'vue-vuex-promise-store'
+import PromiseStore from 'vue-vuex-promise-store'
 
 const store = new Vuex.Store({
   plugins: [PromiseStore.plugin({
@@ -29,7 +29,7 @@ const uniqueKey = 'unique key is required'
 
 // first time for the unique key
 async function initialInvocation() {
-  const context = promise(uniqueKey, (resolve) => {
+  const context = store.getters['promise/init'](uniqueKey, (resolve) => {
     console.log('first')
 
     setTimeout(() => {
@@ -65,8 +65,8 @@ await initialInvocation()
 
 async function secondInvocation() {
   // second time for the unique key
-  const context = promise(uniqueKey, (resolve => {
-    // a result for the unique key is already in the store.
+  const context = store.getters['promise/init'](uniqueKey, (resolve => {
+    // a result for the `uniqueKey` is already in the store.
     // this promise executor is not invoked,
     // and following thenSync()s are executed synchronously.
   }))
@@ -84,10 +84,10 @@ async function secondInvocation() {
 }
 ```
 
-## usage (resolve, reject)
+## Usage (resolve, reject, wrap)
 
 ```javascript
-import PromiseStore, { promise, resolve, reject } from 'vue-vuex-promise-store'
+import PromiseStore, { resolve, reject, wrap } from 'vue-vuex-promise-store'
 
 const store = new Vuex.Store({
   plugins: [PromiseStore.plugin()]
@@ -95,12 +95,16 @@ const store = new Vuex.Store({
 
 let cache = null
 
-function fetchRemoteData (useCache = false) {
+function fetchRemoteData (useCache = false, ignoreStore = false) {
   if (useCache && cache) {
     return cache.status ? resolve(cache.value) : reject(cache.value)
   }
   
-  return promise('remoteData', fetch('http://example.com/path/to/remoteData'))
+  const cb = resolve => resolve(fetch('http://example.com/path/to/remoteData'))
+
+  if (ignoreStore) return wrap(cb)
+  
+  return store.getters['promise/init']('remoteData', cb)
     .thenSync((value) => {
       cache = { value, status: true }
       
@@ -112,10 +116,91 @@ function fetchRemoteData (useCache = false) {
     })
 }
 
-fetchRemoteData(true).thenSync((value) => {
+fetchRemoteData().thenSync((value) => {
   // ...
 }, (reason) => {
   // ...
 })
 
 ```
+
+## API
+
+### Types
+
+```
+type Context<T> = {
+  isFulfilled: boolean, // true if or when the promise is fulfilled
+  isPending: boolean, // ditto but is nether fulfilled nor rejected
+  isRejected: boolean, // ditto but is rejected
+  promise: Promise<T> | void,
+  reason: Error | void, // the result of the rejected promise
+  value: T | void, // the result of the fulfilled promise
+
+  catchSync<E>: () => Context<E> | void
+  thenSync<U>: () => Context<U> | void
+}
+
+type PromiseOrExecutor<T> =
+  Promise<T>
+  | (resolve: (value: T) => void, reject: (reason: Error) => void) => void
+
+type ContextOptions = {
+  refresh?: boolean
+}
+
+type PluginOptions = {
+  moduleName?: string
+}
+```
+
+### Exports
+
+- `MODULE_NAME: string`
+  - is the default module name (is `'promise'`).
+- `VERSION: string`
+  - is the version number (like `'1.0.0'`).
+- `plugin: (options?: PluginOptions) => (store: Vuex.Store) => void`
+  - returns a plugin installer function with given options.
+- `reject(reason: Error) => Context<void>`
+- `resolve(value: T) => Context<T>`
+- `wrap(promise: Promise<T>) => Context<T>`
+  - returns a new `Context` object without stores.
+
+### State
+
+- `contexts: { [string]: Context }`
+  - `Context` objects.
+- `disabled: boolean`
+  - true if store binding is disabled.
+  - @see `disable()` action
+
+### Actions
+
+- `enable() => Promise<void>`
+  - enables the store binding.
+- `disable() => Promise<void>`
+  - disables the store binding.
+  - After disabling the store binding,
+    `Context` objects are not stored in `state.contexts`.
+- `finalize() => Promise<void>`
+  - resolves all `Context` objects in `state.contexts`,
+    then set `promise` `catchSync` `thenSync` to `undefined`.
+  - Use this action to serialize `state`.
+- `resolveAll() => Promise<void>`
+  - resolves all pending `Context` objects.
+
+### Getters
+
+- `hasPendingPromises: boolean`
+  - true if any pending `Context` objects are in `state.contexts`.
+- `init: (key: string, promiseOrExecutor: PromiseOrExecutor<T>, options?: ContextOptions) => Context<T>`
+  - is a function creates a new `Context` object,
+    stores it in `state.contexts` with a given `key`
+    if the store binding is not disabled,
+    and finally returns it.
+  - If a given `key` exists in `state.contexts` then returns it
+    (instead of creating and storing a new object).
+- `pendingPromises: Array<Context>`
+  - is a function returns an array of pending `Context` objects
+    in `state.contexts`.

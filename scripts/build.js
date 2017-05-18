@@ -55,6 +55,7 @@ promise = promise.then(() => {
   write('dist/package.json', JSON.stringify(pkg, null, '  '))
   copy('LICENSE.txt')
   copy('README.md')
+  copy('CHANGELOG.md')
 })
 
 promise.catch(err => console.error(err.stack))
