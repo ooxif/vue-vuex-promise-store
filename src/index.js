@@ -121,6 +121,8 @@ function attachMethods (context, store, moduleName, key, queue) {
     value => commit(true, value),
     reason => commit(false, reason)
   )
+
+  context.promise.catch(noop)
 }
 
 function toPromise (promiseOrExecutor) {
